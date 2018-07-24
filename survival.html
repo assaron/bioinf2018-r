@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Анализ данных в R</title>
+    <meta charset="utf-8">
+    <meta name="author" content="Алексей Сергушичев" />
+    <meta name="date" content="2018-07-24" />
+    <link href="libs/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link rel="stylesheet" href="theme.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Анализ данных в R
+## Биоинформатика в исследованиях рака
+### Алексей Сергушичев
+### 2018-07-24
+
+---
+
+
+# План
+
+* Работа с клинической информацией
+* Работа с данными экспрессии
+
+---
+
+class: center, middle
+
+# Часть 1
+
+## Работа с клинической информацией
+
+---
+
+## TCGA &amp; Genomic data commons
+
+https://portal.gdc.cancer.gov/
+
+&lt;img src="images/gdc_portal.png" height="400px"&gt;
+
+???
+
+Смотрим в Projects и Explore
+
+---
+
+## Lower Grade Glioma
+
+https://www.ncbi.nlm.nih.gov/pubmed/26061751
+
+&lt;img src="images/lgg_paper.png" height="400px"&gt;
+
+---
+
+## Загрузка данных из GDC
+
+* С помощью пакета `GenomicDataCommons`
+* С помощью пакета `TCGAbiolinks`
+* __Импорт руками из предобработанных файлов__
+
+---
+
+## Приложение Morpheus: анализ матриц экспрессии
+
+https://software.broadinstitute.org/morpheus/
+
+&lt;img src="images/morpheus.png" height="400px"&gt;
+
+---
+
+## Загрузка данных экспрессии в Morpheus
+
+* Preloaded datasets -&gt; Brain Lower Grade Glioma (LGG)
+* Выбрать Gene Expression
+
+&lt;img src="images/morpheus_lgg.png" height="400px"&gt;
+
+---
+
+## Загрузка данных экспрессии в Morpheus
+
+
+&lt;img src="images/morpheus_lgg_loaded.png" height="500px"&gt;
+
+---
+
+## Экспорт в gct
+
+* File/Save dataset
+* File name: `lgg.gct`
+
+&lt;img src="images/morpheus_save.png" height="200px"&gt;
+
+* Откроем в OO Calc/Excel/Notepad
+
+---
+
+## Создаем проект в RStudio
+
+* File/New Project/New Directory/Empty Project
+* Создадим новый файл, сохраним как hello.R
+* Напишем `message("Hello world")`
+* Ctrl-Enter скопирует и запустит текущую строчку в консоли
+
+---
+
+## Настройка вида
+
+* Tools/Global options/Pane layout
+
+&lt;img src="images/rstudio_layout.png" height="500px"&gt;
+
+---
+
+## Настройка системы контроля версий
+
+* Tools/Version Control/Project Setup
+
+---
+
+## Пример структуры проекта
+
+* `/work` -- рабочие файлы (изображения, промежуточные таблицы, ...)
+* `/work/data` -- исходные данные
+* `/` -- скрипты (можно в `/scripts`)
+* `/functions.R` -- полезные функции, специфичные для проекта
+* `/requirements.R` -- список зависимостей
+
+---
+
+## R Markdown
+
+* File/R Markdown
+* Knit
+
+* Эта презентация сделана с помощью R Markdown и пакета `xaringan`
+
+
+---
+
+## Копируем нужные файлы
+
+
+* Копируем `functions.R` и `survival.R` в корень
+* Создаем папку `data`
+* Копируем файл `lgg.gct` в папку `data`
+* Открываем скрипт `survival.R` и проходим по шагам
+
+---
+
+## Загрузка файла с экспрессией
+
+* Подгружаем полезные функции (`read.gct`).
+
+
+```r
+# source("requirements.R")
+source("functions.R")
+```
+
+* Загружаем данные по экспрессии из файла.
+
+
+```r
+es &lt;- read.gct("data/lgg.gct")
+```
+
+```
+## Warning in read.gct("data/lgg.gct"): duplicated row IDs: SLC35E2; they were
+## renamed
+```
+
+---
+
+## Объект класса `ExpressionSet` 
+
+
+```r
+es
+```
+
+```
+## ExpressionSet (storageMode: lockedEnvironment)
+## assayData: 18312 features, 530 samples 
+##   element names: exprs 
+## protocolData: none
+## phenoData
+##   sampleNames: 4938-Primary solid Tumor 4941-Primary solid Tumor
+##     ... a85e-Primary solid Tumor (530 total)
+##   varLabels: id participant_id ...
+##     year_of_initial_pathologic_diagnosis (97 total)
+##   varMetadata: labelDescription
+## featureData
+##   featureNames: A1BG A2BP1 ... psiTPTE22 (18312 total)
+##   fvarLabels: id Source
+##   fvarMetadata: labelDescription
+## experimentData: use 'experimentData(object)'
+## Annotation:
+```
+
+---
+
+## Экспрессия в `ExpressionSet` 
+
+
+```r
+str(exprs(es))
+```
+
+```
+##  num [1:18312, 1:530] 6.6 4.5 3.8 7.2 13.9 6.2 NaN NaN 9.2 NaN ...
+##  - attr(*, "dimnames")=List of 2
+##   ..$ : chr [1:18312] "A1BG" "A2BP1" "A2LD1" "A2ML1" ...
+##   ..$ : chr [1:530] "4938-Primary solid Tumor" "4941-Primary solid Tumor" "4942-Primary solid Tumor" "4943-Primary solid Tumor" ...
+```
+
+```r
+exprs(es)[1:10, 1:2]
+```
+
+```
+##        4938-Primary solid Tumor 4941-Primary solid Tumor
+## A1BG                        6.6                      6.2
+## A2BP1                       4.5                      9.0
+## A2LD1                       3.8                      7.2
+## A2ML1                       7.2                      9.0
+## A2M                        13.9                     14.1
+## A4GALT                      6.2                      7.3
+## A4GNT                       NaN                      0.0
+## AAA1                        NaN                      NaN
+## AAAS                        9.2                      8.5
+## AACSL                       NaN                      NaN
+```
+
+---
+
+## Метаданные в `ExpressionSet`
+
+* Метаданные по генам:
+
+
+```r
+str(fData(es))
+```
+
+```
+## 'data.frame':	18312 obs. of  2 variables:
+##  $ id    : chr  "A1BG" "A2BP1" "A2LD1" "A2ML1" ...
+##  $ Source: chr  "mRNAseq_RSEM_normalized_log2" "mRNAseq_RSEM_normalized_log2" "mRNAseq_RSEM_normalized_log2" "mRNAseq_RSEM_normalized_log2" ...
+```
+
+* Метаданные по образцам:
+
+
+```r
+str(pData(es), list.len=5)
+```
+
+```
+## 'data.frame':	530 obs. of  97 variables:
+##  $ id                                            : chr  "4938-Primary solid Tumor" "4941-Primary solid Tumor" "4942-Primary solid Tumor" "4943-Primary solid Tumor" ...
+##  $ participant_id                                : chr  "4938" "4941" "4942" "4943" ...
+##  $ sample_type                                   : chr  "Primary solid Tumor" "Primary solid Tumor" "Primary solid Tumor" "Primary solid Tumor" ...
+##  $ mRNAseq_cluster                               : chr  "1" "2" "1" "1" ...
+##  $ bcr_patient_barcode                           : chr  "tcga-cs-4938" "tcga-cs-4941" "tcga-cs-4942" "tcga-cs-4943" ...
+##   [list output truncated]
+```
+
+---
+
+## Выбираем клиническую информацию
+
+
+```r
+clinical &lt;- pData(es)
+str(clinical, list.len=10)
+```
+
+```
+## 'data.frame':	530 obs. of  97 variables:
+##  $ id                                            : chr  "4938-Primary solid Tumor" "4941-Primary solid Tumor" "4942-Primary solid Tumor" "4943-Primary solid Tumor" ...
+##  $ participant_id                                : chr  "4938" "4941" "4942" "4943" ...
+##  $ sample_type                                   : chr  "Primary solid Tumor" "Primary solid Tumor" "Primary solid Tumor" "Primary solid Tumor" ...
+##  $ mRNAseq_cluster                               : chr  "1" "2" "1" "1" ...
+##  $ bcr_patient_barcode                           : chr  "tcga-cs-4938" "tcga-cs-4941" "tcga-cs-4942" "tcga-cs-4943" ...
+##  $ bcr_patient_uuid                              : chr  "334f715e-08dc-4a29-b8e4-b010b829c478" "fc222f23-b3b2-4ac0-bc61-e8e8fa5cc160" "230f5fa7-aa36-41ea-b40b-08f520767bd5" "952dfd5d-e65a-4307-b6a9-2ed2b0d2d9ce" ...
+##  $ vital_status                                  : chr  "alive" "dead" "dead" "dead" ...
+##  $ days_to_death                                 : chr  "NaN" "234.00" "1335.00" "1106.00" ...
+##  $ days_to_last_followup                         : chr  "3574.00" "NaN" "NaN" "NaN" ...
+##  $ additional_studies                            : chr  NA NA NA NA ...
+##   [list output truncated]
+```
+
+
+---
+
+## magrittr: ceci n'est pas une pipe
+
+* Вводит pipe-оператор `%&gt;%`: `x %&gt;% f(y)` эквивалентно `f(x, y)`.
+
+
+```r
+library(magrittr)
+
+mtcars %&gt;%
+  subset(hp &gt; 100) %&gt;%
+  aggregate(. ~ cyl, data = ., FUN = . %&gt;% mean %&gt;% round(2)) %&gt;%
+  transform(kpl = mpg %&gt;% multiply_by(0.4251))
+```
+
+```
+##   cyl   mpg   disp     hp drat   wt  qsec   vs   am gear carb       kpl
+## 1   4 25.90 108.05 111.00 3.94 2.15 17.75 1.00 1.00 4.50 2.00 11.010090
+## 2   6 19.74 183.31 122.29 3.59 3.12 17.98 0.57 0.43 3.86 3.43  8.391474
+## 3   8 15.10 353.10 209.21 3.23 4.00 16.77 0.00 0.14 3.29 3.50  6.419010
+```
+
+---
+
+## dplyr
+
+* Вводит функции для работы с таблицами.
+
+
+```r
+library(dplyr)
+
+starwars %&gt;% 
+    filter(species == "Droid") %&gt;%
+    select(name, ends_with("color"))
+```
+
+```
+## # A tibble: 5 x 4
+##   name  hair_color skin_color  eye_color
+##   &lt;chr&gt; &lt;chr&gt;      &lt;chr&gt;       &lt;chr&gt;    
+## 1 C-3PO &lt;NA&gt;       gold        yellow   
+## 2 R2-D2 &lt;NA&gt;       white, blue red      
+## 3 R5-D4 &lt;NA&gt;       white, red  red      
+## 4 IG-88 none       metal       red      
+## 5 BB8   none       none        black
+```
+
+---
+
+## Типы образцов
+
+* Проверяем, какие есть типы:
+
+
+```r
+table(clinical$sample_type)
+```
+
+```
+## 
+##   Primary solid Tumor Recurrent Solid Tumor 
+##                   516                    14
+```
+
+* Оставляем только `Primary solid Tumor`:
+
+
+```r
+clinical %&gt;% 
+    filter(sample_type == "Primary solid Tumor") %&gt;%
+    str(list.len=5)
+```
+
+```
+## 'data.frame':	516 obs. of  97 variables:
+##  $ id                                            : chr  "4938-Primary solid Tumor" "4941-Primary solid Tumor" "4942-Primary solid Tumor" "4943-Primary solid Tumor" ...
+##  $ participant_id                                : chr  "4938" "4941" "4942" "4943" ...
+##  $ sample_type                                   : chr  "Primary solid Tumor" "Primary solid Tumor" "Primary solid Tumor" "Primary solid Tumor" ...
+##  $ mRNAseq_cluster                               : chr  "1" "2" "1" "1" ...
+##  $ bcr_patient_barcode                           : chr  "tcga-cs-4938" "tcga-cs-4941" "tcga-cs-4942" "tcga-cs-4943" ...
+##   [list output truncated]
+```
+
+???
+
+* Стало 516 строчек
+* Еще можно проверить, что `bcr_patient_barcode` не повторяются
+
+---
+
+## Сохраним результаты
+
+
+```r
+clinical &lt;- clinical %&gt;%
+    filter(sample_type == "Primary solid Tumor")
+str(clinical, list.len=10)
+```
+
+```
+## 'data.frame':	516 obs. of  97 variables:
+##  $ id                                            : chr  "4938-Primary solid Tumor" "4941-Primary solid Tumor" "4942-Primary solid Tumor" "4943-Primary solid Tumor" ...
+##  $ participant_id                                : chr  "4938" "4941" "4942" "4943" ...
+##  $ sample_type                                   : chr  "Primary solid Tumor" "Primary solid Tumor" "Primary solid Tumor" "Primary solid Tumor" ...
+##  $ mRNAseq_cluster                               : chr  "1" "2" "1" "1" ...
+##  $ bcr_patient_barcode                           : chr  "tcga-cs-4938" "tcga-cs-4941" "tcga-cs-4942" "tcga-cs-4943" ...
+##  $ bcr_patient_uuid                              : chr  "334f715e-08dc-4a29-b8e4-b010b829c478" "fc222f23-b3b2-4ac0-bc61-e8e8fa5cc160" "230f5fa7-aa36-41ea-b40b-08f520767bd5" "952dfd5d-e65a-4307-b6a9-2ed2b0d2d9ce" ...
+##  $ vital_status                                  : chr  "alive" "dead" "dead" "dead" ...
+##  $ days_to_death                                 : chr  "NaN" "234.00" "1335.00" "1106.00" ...
+##  $ days_to_last_followup                         : chr  "3574.00" "NaN" "NaN" "NaN" ...
+##  $ additional_studies                            : chr  NA NA NA NA ...
+##   [list output truncated]
+```
+
+* Можно покороче:
+
+
+```r
+clinical %&lt;&gt;%
+    filter(sample_type == "Primary solid Tumor")
+```
+
+---
+
+## Переведем колонки в числа
+
+* Пока только те, что начинаются с `"days_"`:
+
+
+```r
+clinical %&lt;&gt;%
+    mutate_at(vars(starts_with("days_")), funs(as.numeric))
+str(clinical, list.len=10)
+```
+
+```
+## 'data.frame':	516 obs. of  97 variables:
+##  $ id                                            : chr  "4938-Primary solid Tumor" "4941-Primary solid Tumor" "4942-Primary solid Tumor" "4943-Primary solid Tumor" ...
+##  $ participant_id                                : chr  "4938" "4941" "4942" "4943" ...
+##  $ sample_type                                   : chr  "Primary solid Tumor" "Primary solid Tumor" "Primary solid Tumor" "Primary solid Tumor" ...
+##  $ mRNAseq_cluster                               : chr  "1" "2" "1" "1" ...
+##  $ bcr_patient_barcode                           : chr  "tcga-cs-4938" "tcga-cs-4941" "tcga-cs-4942" "tcga-cs-4943" ...
+##  $ bcr_patient_uuid                              : chr  "334f715e-08dc-4a29-b8e4-b010b829c478" "fc222f23-b3b2-4ac0-bc61-e8e8fa5cc160" "230f5fa7-aa36-41ea-b40b-08f520767bd5" "952dfd5d-e65a-4307-b6a9-2ed2b0d2d9ce" ...
+##  $ vital_status                                  : chr  "alive" "dead" "dead" "dead" ...
+##  $ days_to_death                                 : num  NaN 234 1335 1106 NaN ...
+##  $ days_to_last_followup                         : num  3574 NaN NaN NaN 1828 ...
+##  $ additional_studies                            : chr  NA NA NA NA ...
+##   [list output truncated]
+```
+
+---
+
+## Упражнение
+
+* Найти колонку с возрастом и сконвертировать ее в число
+
+---
+
+## Cтатистика по выживаемости
+
+* Какой статус у пациентов?
+
+
+```r
+table(clinical$vital_status)
+```
+
+```
+## 
+##       alive  dead 
+##     1   389   126
+```
+
+--
+
+* Среди пациентов был кот Шредингера?
+
+---
+
+## Подготовим данные для анализа выживаемости
+
+
+
+```r
+clinical %&lt;&gt;%
+    mutate(years_to_event = case_when(
+        vital_status == "alive" ~ days_to_last_followup / 365,
+        vital_status == "dead"  ~ days_to_death / 365)) %&gt;%
+    mutate(event_status = vital_status == "dead")
+```
+
+--
+
+
+```r
+summary(clinical$years_to_event)
+```
+
+```
+##     Min.  1st Qu.   Median     Mean  3rd Qu.     Max.     NA's 
+## -0.00274  1.09384  1.84658  2.63712  3.34658 17.59726        2
+```
+
+```r
+table(clinical$event_status)
+```
+
+```
+## 
+## FALSE  TRUE 
+##   390   126
+```
+
+---
+
+## Функция выживаемости
+
+* `\(S(t)\)` - вероятность выжить хотя бы время `\(t\)`
+
+
+```r
+library(survival)
+clinical %&gt;%
+    survfit(Surv(years_to_event, event_status) ~ 1, data=.)
+```
+
+```
+## Call: survfit(formula = Surv(years_to_event, event_status) ~ 1, data = .)
+## 
+##    2 observations deleted due to missingness 
+##       n  events  median 0.95LCL 0.95UCL 
+##  514.00  125.00    7.29    5.62    9.51
+```
+
+---
+
+## Грфик выживаемости
+
+
+```r
+library(GGally)
+clinical %&gt;%
+    survfit(Surv(years_to_event, event_status) ~ 1, data=.) %&gt;%
+    ggsurv()
+```
+
+![](survival_files/figure-html/surv1-1.svg)&lt;!-- --&gt;
+
+
+---
+
+## Сравнение выживаемости: зависит ли от пола?
+
+--
+
+
+```r
+clinical %&gt;%
+    survfit(Surv(years_to_event, event_status) ~ gender, data=.) %&gt;%
+    ggsurv()
+```
+
+![](survival_files/figure-html/surv-gender-1.svg)&lt;!-- --&gt;
+
+---
+
+## Сравнение выживаемости: зависит ли от гистологии?
+
+--
+
+
+
+```r
+clinical %&gt;%
+    survfit(Surv(years_to_event, event_status) ~ histological_type, data=.) %&gt;%
+    ggsurv()
+```
+
+![](survival_files/figure-html/surv-histology-1.svg)&lt;!-- --&gt;
+
+---
+
+## Упражнение
+
+* Нарисовать график выживаемости только для пациентов с астроцитомой
+
+---
+
+## Дифференциальный анализ выживаемости
+
+
+```r
+clinical %&gt;%
+    survdiff(Surv(years_to_event, event_status) ~ histological_type, data=.)
+```
+
+```
+## Call:
+## survdiff(formula = Surv(years_to_event, event_status) ~ histological_type, 
+##     data = .)
+## 
+## n=514, 2 observations deleted due to missingness.
+## 
+##                                       N Observed Expected (O-E)^2/E
+## histological_type=astrocytoma       194       58     41.9     6.224
+## histological_type=oligoastrocytoma  130       25     29.7     0.741
+## histological_type=oligodendroglioma 190       42     53.5     2.453
+##                                     (O-E)^2/V
+## histological_type=astrocytoma           9.472
+## histological_type=oligoastrocytoma      0.976
+## histological_type=oligodendroglioma     4.379
+## 
+##  Chisq= 9.5  on 2 degrees of freedom, p= 0.008
+```
+
+---
+
+## Дифференциальный анализ выживаемости
+
+
+```r
+clinical %&gt;%
+    survdiff(Surv(years_to_event, event_status) ~ (histological_type == "astrocytoma"),
+             data=.)
+```
+
+```
+## Call:
+## survdiff(formula = Surv(years_to_event, event_status) ~ (histological_type == 
+##     "astrocytoma"), data = .)
+## 
+## n=514, 2 observations deleted due to missingness.
+## 
+##                                            N Observed Expected (O-E)^2/E
+## histological_type == "astrocytoma"=FALSE 320       67     83.1      3.13
+## histological_type == "astrocytoma"=TRUE  194       58     41.9      6.22
+##                                          (O-E)^2/V
+## histological_type == "astrocytoma"=FALSE      9.47
+## histological_type == "astrocytoma"=TRUE       9.47
+## 
+##  Chisq= 9.5  on 1 degrees of freedom, p= 0.002
+```
+
+---
+
+## Упражнение
+
+* Есть ли разница в выживаемости у пациентов с наличием семейной истории рака?
+
+---
+
+## Работа с `GenomicDataCommons`
+
+
+```r
+gdcRes &lt;- GenomicDataCommons::cases() %&gt;%
+    GenomicDataCommons::filter( ~ project.project_id == 'TCGA-LGG') %&gt;%
+    GenomicDataCommons::select(c("diagnoses.days_to_last_follow_up",
+             "diagnoses.days_to_death",
+             "diagnoses.morphology",
+             "diagnoses.vital_status")) %&gt;%
+    GenomicDataCommons::results()
+str(gdcRes, list.len = 3)
+```
+
+```
+## List of 3
+##  $ diagnoses:List of 10
+##   ..$ 0d61bdbd-24b1-4885-a099-9e42ca7eedcd:'data.frame':	1 obs. of  4 variables:
+##   .. ..$ days_to_last_follow_up: num 434
+##   .. ..$ morphology            : chr "9451/3"
+##   .. ..$ days_to_death         : logi NA
+##   .. .. [list output truncated]
+##   ..$ cb041720-0efa-4eb6-a9a5-b6e138bb1a99:'data.frame':	1 obs. of  4 variables:
+##   .. ..$ days_to_last_follow_up: num 1393
+##   .. ..$ morphology            : chr "9400/3"
+##   .. ..$ days_to_death         : logi NA
+##   .. .. [list output truncated]
+##   ..$ eb42625e-fbbb-4bee-bbe9-315b3ca2138a:'data.frame':	1 obs. of  4 variables:
+##   .. ..$ days_to_last_follow_up: num 5546
+##   .. ..$ morphology            : chr "9450/3"
+##   .. ..$ days_to_death         : logi NA
+##   .. .. [list output truncated]
+##   .. [list output truncated]
+##  $ case_id  : chr [1:10] "0d61bdbd-24b1-4885-a099-9e42ca7eedcd" "cb041720-0efa-4eb6-a9a5-b6e138bb1a99" "eb42625e-fbbb-4bee-bbe9-315b3ca2138a" "1a20f675-d9bb-48b0-a49f-d52270bd8973" ...
+##  $ id       : chr [1:10] "0d61bdbd-24b1-4885-a099-9e42ca7eedcd" "cb041720-0efa-4eb6-a9a5-b6e138bb1a99" "eb42625e-fbbb-4bee-bbe9-315b3ca2138a" "1a20f675-d9bb-48b0-a49f-d52270bd8973" ...
+##  - attr(*, "row.names")= int [1:10] 1 2 3 4 5 6 7 8 9 10
+##  - attr(*, "class")= chr [1:3] "GDCcasesResults" "GDCResults" "list"
+```
+
+## Работа с `GenomicDataCommons`
+
+Скачиваем все результаты
+    
+
+```r
+gdcRes &lt;- GenomicDataCommons::cases() %&gt;%
+    GenomicDataCommons::filter( ~ project.project_id == 'TCGA-LGG') %&gt;%
+    GenomicDataCommons::select(c("diagnoses.days_to_last_follow_up",
+             "diagnoses.days_to_death",
+             "diagnoses.morphology",
+             "diagnoses.vital_status")) %&gt;%
+    GenomicDataCommons::results_all()
+str(gdcRes, list.len = 3)
+```
+
+```
+## List of 3
+##  $ diagnoses:List of 516
+##   ..$ 0d61bdbd-24b1-4885-a099-9e42ca7eedcd:'data.frame':	1 obs. of  4 variables:
+##   .. ..$ days_to_last_follow_up: num 434
+##   .. ..$ morphology            : chr "9451/3"
+##   .. ..$ days_to_death         : logi NA
+##   .. .. [list output truncated]
+##   ..$ cb041720-0efa-4eb6-a9a5-b6e138bb1a99:'data.frame':	1 obs. of  4 variables:
+##   .. ..$ days_to_last_follow_up: num 1393
+##   .. ..$ morphology            : chr "9400/3"
+##   .. ..$ days_to_death         : logi NA
+##   .. .. [list output truncated]
+##   ..$ eb42625e-fbbb-4bee-bbe9-315b3ca2138a:'data.frame':	1 obs. of  4 variables:
+##   .. ..$ days_to_last_follow_up: num 5546
+##   .. ..$ morphology            : chr "9450/3"
+##   .. ..$ days_to_death         : logi NA
+##   .. .. [list output truncated]
+##   .. [list output truncated]
+##  $ case_id  : chr [1:516] "0d61bdbd-24b1-4885-a099-9e42ca7eedcd" "cb041720-0efa-4eb6-a9a5-b6e138bb1a99" "eb42625e-fbbb-4bee-bbe9-315b3ca2138a" "1a20f675-d9bb-48b0-a49f-d52270bd8973" ...
+##  $ id       : chr [1:516] "0d61bdbd-24b1-4885-a099-9e42ca7eedcd" "cb041720-0efa-4eb6-a9a5-b6e138bb1a99" "eb42625e-fbbb-4bee-bbe9-315b3ca2138a" "1a20f675-d9bb-48b0-a49f-d52270bd8973" ...
+##  - attr(*, "row.names")= int [1:516] 1 2 3 4 5 6 7 8 9 10 ...
+##  - attr(*, "class")= chr [1:3] "GDCcasesResults" "GDCResults" "list"
+```
+
+
+---
+
+## Работа с GenomicDataCommons
+
+Делаем нормальную таблицу
+
+
+```r
+gdcClinical &lt;- bind_rows(gdcRes$diagnoses)
+head(gdcClinical)
+```
+
+```
+##   days_to_last_follow_up morphology days_to_death vital_status
+## 1                    434     9451/3            NA        alive
+## 2                   1393     9400/3            NA        alive
+## 3                   5546     9450/3            NA        alive
+## 4                    320     9382/3            NA        alive
+## 5                      7     9401/3            NA        alive
+## 6                    805     9401/3            NA        alive
+```
+
+---
+
+## Коды морфологии ICD-O-3
+
+
+```r
+library(readr)
+icdo3 &lt;- read_tsv("./data/icdo3_histology.tsv")
+```
+
+```
+## Parsed with column specification:
+## cols(
+##   `Site recode` = col_character(),
+##   `Site Description` = col_character(),
+##   Histology = col_integer(),
+##   `Histology Description` = col_character(),
+##   `Histology/Behavior` = col_character(),
+##   `Histology/Behavior Description` = col_character()
+## )
+```
+
+```r
+icdo3
+```
+
+```
+## # A tibble: 10,484 x 6
+##    `Site recode`       `Site Description` Histology `Histology Descriptio…
+##    &lt;chr&gt;               &lt;chr&gt;                  &lt;int&gt; &lt;chr&gt;                 
+##  1 C000-C006,C008-C009 LIP                      800 NEOPLASM              
+##  2 C000-C006,C008-C009 LIP                      800 NEOPLASM              
+##  3 C000-C006,C008-C009 LIP                      800 NEOPLASM              
+##  4 C000-C006,C008-C009 LIP                      800 NEOPLASM              
+##  5 C000-C006,C008-C009 LIP                      800 NEOPLASM              
+##  6 C000-C006,C008-C009 LIP                      800 NEOPLASM              
+##  7 C000-C006,C008-C009 LIP                      801 CARCINOMA, NOS        
+##  8 C000-C006,C008-C009 LIP                      801 CARCINOMA, NOS        
+##  9 C000-C006,C008-C009 LIP                      801 CARCINOMA, NOS        
+## 10 C000-C006,C008-C009 LIP                      801 CARCINOMA, NOS        
+## # ... with 10,474 more rows, and 2 more variables:
+## #   `Histology/Behavior` &lt;chr&gt;, `Histology/Behavior Description` &lt;chr&gt;
+```
+
+* Откуда взял таблицу -- не помню :(
+
+--- 
+
+## Коды морфиологии
+
+
+```r
+icdo3_histology &lt;- icdo3 %&gt;%
+    select(morphology=`Histology/Behavior`, morphology_desc=`Histology/Behavior Description`) %&gt;%
+    unique
+icdo3_histology
+```
+
+```
+## # A tibble: 721 x 2
+##    morphology morphology_desc                   
+##    &lt;chr&gt;      &lt;chr&gt;                             
+##  1 8000/3     Neoplasm, malignant               
+##  2 8001/3     Tumor cells, malignant            
+##  3 8002/3     Malignant tumor, small cell type  
+##  4 8003/3     Malignant tumor, giant cell type  
+##  5 8004/3     Malignant tumor, spindle cell type
+##  6 8005/3     Malignant tumor, clear cell type  
+##  7 8010/2     Carcinoma in situ, NOS            
+##  8 8010/3     Carcinoma, NOS                    
+##  9 8011/3     Epithelioma, malignant            
+## 10 8012/3     Large cell carcinoma, NOS         
+## # ... with 711 more rows
+```
+
+---
+
+## Обхединение кодов и их описаний
+
+* Объединяем, чтобы в таблице с клиническими данными были бы и текстовые описания
+
+
+```r
+gdcClinical &lt;- gdcClinical %&gt;%
+    left_join(icdo3_histology, by=c("morphology"))
+head(gdcClinical)
+```
+
+```
+##   days_to_last_follow_up morphology days_to_death vital_status
+## 1                    434     9451/3            NA        alive
+## 2                   1393     9400/3            NA        alive
+## 3                   5546     9450/3            NA        alive
+## 4                    320     9382/3            NA        alive
+## 5                      7     9401/3            NA        alive
+## 6                    805     9401/3            NA        alive
+##                 morphology_desc
+## 1 Oligodendroglioma, anaplastic
+## 2              Astrocytoma, NOS
+## 3        Oligodendroglioma, NOS
+## 4                  Mixed glioma
+## 5       Astrocytoma, anaplastic
+## 6       Astrocytoma, anaplastic
+```
+
+---
+
+## Анализ выживаемости
+
+
+```r
+table(gdcClinical$vital_status)
+```
+
+```
+## 
+## alive  dead 
+##   389   126
+```
+
+```r
+gdcClinical %&lt;&gt;%
+    mutate(years_to_event = case_when(
+        vital_status == "alive" ~ days_to_last_follow_up / 365,
+        vital_status == "dead"  ~ days_to_death / 365)) %&gt;%
+    mutate(event_status = vital_status == "dead")
+```
+
+---
+
+## Зависимость выживаемости от гистологии
+
+
+```r
+gdcClinical %&gt;%
+    survfit(Surv(years_to_event, event_status) ~ morphology_desc, data=.) %&gt;%
+    ggsurv()
+```
+
+![](survival_files/figure-html/surv-morphology-1.svg)&lt;!-- --&gt;
+
+
+---
+
+## Промежуточное заключение
+
+* Мы загрузили данные по проекту TCGA-LGG
+* Подготовили данные для анализа выживаемости
+* Определили, что выживаемость пациентов с астроцитомой значительно меньше выживаемости пациентов с олигодендроглиомой и олигоастроцитомой
+    </textarea>
+<script src="libs/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false,
+"ratio": "16:9"
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function() {
+  var d = document, s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})();</script>
+
+<script>
+(function() {
+  var i, text, code, codes = document.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+})();
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://cdn.bootcss.com/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
