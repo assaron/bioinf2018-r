@@ -77,6 +77,9 @@ summary(clinical$years_to_event)
 table(clinical$event_status)
 
 ## ------------------------------------------------------------------------
+save(clinical, file="clinical.rda")
+
+## ------------------------------------------------------------------------
 library(survival)
 clinical %>%
     survfit(Surv(years_to_event, event_status) ~ 1, data=.)
