@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Анализ данных в R</title>
+    <meta charset="utf-8">
+    <meta name="author" content="Алексей Сергушичев" />
+    <meta name="date" content="2018-07-25" />
+    <link href="libs/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link rel="stylesheet" href="theme.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Анализ данных в R
+## Биоинформатика в исследованиях рака
+### Алексей Сергушичев
+### 2018-07-25
+
+---
+
+
+# План
+
+* Работа с клинической информацией
+* Работа с данными экспрессии
+
+---
+
+class: center, middle
+
+# Часть 2
+
+## Работа с данными экспрессии
+
+---
+
+## В предыдущей части
+
+* Мы загрузили данные по проекту TCGA-LGG
+* Подготовили данные для анализа выживаемости
+* Определили, что выживаемость пациентов с астроцитомой значительно меньше выживаемости пациентов с олигодендроглиомой и олигоастроцитомой
+
+--
+
+Теперь попробуем найти, в чем разница между астроцитомой и олигодендроглиомой 
+
+---
+
+## Загрузка файла с экспрессией
+
+* Подгружаем полезные функции (`read.gct`).
+
+
+```r
+# source("requirements.R")
+source("functions.R")
+library(magrittr)
+library(dplyr)
+library(survival)
+library(GGally)
+```
+
+* Загружаем данные по экспрессии из файла.
+
+
+```r
+es &lt;- read.gct("data/lgg.gct")
+```
+
+```
+## Warning in read.gct("data/lgg.gct"): duplicated row IDs: SLC35E2; they were
+## renamed
+```
+
+---
+
+## Объект класса `ExpressionSet` 
+
+
+```r
+es
+```
+
+```
+## ExpressionSet (storageMode: lockedEnvironment)
+## assayData: 18312 features, 530 samples 
+##   element names: exprs 
+## protocolData: none
+## phenoData
+##   sampleNames: 4938-Primary solid Tumor 4941-Primary solid Tumor
+##     ... a85e-Primary solid Tumor (530 total)
+##   varLabels: id participant_id ...
+##     year_of_initial_pathologic_diagnosis (97 total)
+##   varMetadata: labelDescription
+## featureData
+##   featureNames: A1BG A2BP1 ... psiTPTE22 (18312 total)
+##   fvarLabels: id Source
+##   fvarMetadata: labelDescription
+## experimentData: use 'experimentData(object)'
+## Annotation:
+```
+
+---
+
+## Фильтрация
+
+
+```r
+es &lt;- es[, es$sample_type == "Primary solid Tumor"]
+```
+
+Есть значения NA, видимо, после логарифмирования нуля:
+
+
+```r
+exprs(es)[is.na(exprs(es)) | exprs(es) &lt; 0] &lt;- 0
+```
+
+
+Отфильтруем топ 10000 генов по экспрессии
+
+
+```r
+fData(es)$mean_expression &lt;- apply(exprs(es), 1, mean)
+es &lt;- es[head(order(fData(es)$mean_expression, decreasing=TRUE), 10000)]
+```
+
+---
+
+## Библиотека ggplot2
+
+
+```r
+library(ggplot2)
+ggplot(data=mtcars, aes(x=mpg, y=hp, color = as.factor(gear))) + 
+    geom_point()
+```
+
+![](expression_files/figure-html/ggplot2-1-1.svg)&lt;!-- --&gt;
+
+---
+
+## Библиотека ggplot2
+
+
+```r
+library(ggplot2)
+ggplot(data=mtcars, aes(x=mpg, y=hp, color = as.factor(gear))) + 
+    geom_point() +
+    theme_bw()
+```
+
+![](expression_files/figure-html/ggplot2-2-1.svg)&lt;!-- --&gt;
+
+---
+
+## Библиотека ggplot2
+
+
+```r
+library(ggplot2)
+ggplot(data=mtcars, aes(x=mpg, y=hp, color = as.factor(gear))) + 
+    geom_point() +
+    theme_bw() +
+    ggtitle("mtcars: mpg vs hp")
+```
+
+![](expression_files/figure-html/ggplot2-3-1.svg)&lt;!-- --&gt;
+
+---
+
+## Анализ главных компонент (PCA plot)
+
+--
+
+&lt;img src="images/pca_fish.png" height="400px"&gt;
+
+.footnote[
+https://commons.wikimedia.org/wiki/File:PCA_fish.png
+]
+---
+
+## Анализ главных компонент
+
+
+```r
+pca &lt;- prcomp(t(exprs(es)))
+str(pca, list.len=5)
+```
+
+```
+## List of 5
+##  $ sdev    : num [1:516] 32.9 25.7 21.2 19.7 14.6 ...
+##  $ rotation: num [1:10000, 1:516] -0.01903 -0.01279 -0.00442 -0.00853 0.00777 ...
+##   ..- attr(*, "dimnames")=List of 2
+##   .. ..$ : chr [1:10000] "GFAP" "CLU" "SPARC" "ACTB" ...
+##   .. ..$ : chr [1:516] "PC1" "PC2" "PC3" "PC4" ...
+##  $ center  : Named num [1:10000] 18.2 16.9 16.2 16.2 15.9 ...
+##   ..- attr(*, "names")= chr [1:10000] "GFAP" "CLU" "SPARC" "ACTB" ...
+##  $ scale   : logi FALSE
+##  $ x       : num [1:516, 1:516] -19.97 -42.82 -7.41 -1.75 -15.1 ...
+##   ..- attr(*, "dimnames")=List of 2
+##   .. ..$ : chr [1:516] "4938-Primary solid Tumor" "4941-Primary solid Tumor" "4942-Primary solid Tumor" "4943-Primary solid Tumor" ...
+##   .. ..$ : chr [1:516] "PC1" "PC2" "PC3" "PC4" ...
+##  - attr(*, "class")= chr "prcomp"
+```
+
+---
+
+## Доля объясняемой вариации
+
+
+```r
+str(pca$sdev)
+```
+
+```
+##  num [1:516] 32.9 25.7 21.2 19.7 14.6 ...
+```
+
+```r
+pca_explained &lt;- (pca$sdev)^2/sum(pca$sdev^2)*100
+head(pca_explained)
+```
+
+```
+## [1] 20.121250 12.202622  8.345304  7.230155  3.941452  3.595543
+```
+
+https://ro-che.info/articles/2017-12-11-pca-explained-variance
+
+---
+
+## График анализа главных компонент
+
+
+```r
+pca_table &lt;- cbind(as.data.frame(pca$x), 
+                   pData(es))
+pp &lt;- ggplot(data = pca_table) + 
+    geom_point(mapping=aes(x=PC1, y=PC2, color=histological_type)) +
+    xlab(sprintf("PC1 (%.1f%%)", pca_explained[1])) +
+    ylab(sprintf("PC2 (%.1f%%)", pca_explained[2]))
+pp
+```
+
+![](expression_files/figure-html/unnamed-chunk-8-1.svg)&lt;!-- --&gt;
+
+---
+
+## График анализа главных компонент
+
+Сохраним график в png-файл
+
+
+```r
+ggsave(pp, file="./pca12.png", width=6, height=4)
+```
+
+---
+
+## Упражнение
+
+* Покрасить образцы в зависимости от пола
+
+--
+
+* Покрасить в зависимости от гистологии, а пол и спользовать для формы точек
+
+
+---
+
+## Фильтруем образцы
+
+
+```r
+es_sub &lt;- es[, es$histological_type %in% c("astrocytoma", "oligodendroglioma")]
+```
+
+---
+
+
+## Анализ дифференциальной экспрессии
+
+
+```r
+library(limma)
+```
+
+&lt;img src="images/limma.jpg" height="300px"&gt;
+
+.footnote[ https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4402510/ ] 
+
+---
+
+## Дизайн экспримента
+
+
+```r
+es.design &lt;- model.matrix(~0+histological_type, data=pData(es_sub))
+
+head(es.design)
+```
+
+```
+##                          histological_typeastrocytoma
+## 4938-Primary solid Tumor                            1
+## 4941-Primary solid Tumor                            1
+## 4942-Primary solid Tumor                            1
+## 4943-Primary solid Tumor                            1
+## 4944-Primary solid Tumor                            1
+## 5390-Primary solid Tumor                            0
+##                          histological_typeoligodendroglioma
+## 4938-Primary solid Tumor                                  0
+## 4941-Primary solid Tumor                                  0
+## 4942-Primary solid Tumor                                  0
+## 4943-Primary solid Tumor                                  0
+## 4944-Primary solid Tumor                                  0
+## 5390-Primary solid Tumor                                  1
+```
+
+---
+
+## Фит коэффициентов
+
+
+```r
+fit &lt;- lmFit(es_sub, es.design)
+
+fit2 &lt;- contrasts.fit(fit, makeContrasts(histological_typeoligodendroglioma-
+                                             histological_typeastrocytoma, 
+                                         levels=es.design))
+fit2 &lt;- eBayes(fit2)
+```
+
+---
+
+## Результаты анализа дифференциальной экспрессии
+
+
+```r
+de &lt;- topTable(fit2, adjust.method="BH", number=Inf)
+head(de)
+```
+
+```
+##              id                       Source mean_expression      logFC
+## ASAP3     ASAP3 mRNAseq_RSEM_normalized_log2        9.968023 -1.2037837
+## AK2         AK2 mRNAseq_RSEM_normalized_log2       10.017442 -0.8751147
+## TXNDC12 TXNDC12 mRNAseq_RSEM_normalized_log2       10.075969 -0.7172586
+## NADK       NADK mRNAseq_RSEM_normalized_log2        9.753488 -0.7431802
+## SFRS4     SFRS4 mRNAseq_RSEM_normalized_log2       10.715310 -0.6687051
+## HDAC1     HDAC1 mRNAseq_RSEM_normalized_log2        9.617829 -0.9871215
+##           AveExpr         t      P.Value    adj.P.Val        B
+## ASAP3    9.928571 -16.94603 1.489132e-48 7.880775e-45 99.63908
+## AK2     10.016883 -16.94020 1.576155e-48 7.880775e-45 99.58287
+## TXNDC12 10.078701 -16.82120 5.026985e-48 1.675662e-44 98.43494
+## NADK     9.748831 -16.14720 3.494542e-45 8.736356e-42 91.95784
+## SFRS4   10.694026 -15.65387 4.073176e-43 7.845588e-40 87.24821
+## HDAC1    9.596883 -15.63882 4.707353e-43 7.845588e-40 87.10499
+```
+
+---
+
+## Упражнение
+
+* Построить график экспрессии гена `ASAP3` в зависимости от гистологического типа
+
+---
+
+## Коррекция на множественное сравнение
+
+.pull-left[
+* Бонферрони (FWER)
+* Бенджамини-Хохберг (FDR)
+]
+
+.pull-right[
+&lt;img src="images/significant.png" height="450px"&gt;
+]
+
+.footnote[
+https://xkcd.com/882/
+]
+---
+
+## Упражнение
+
+* У скольких генов скорректированное P-значение меньше 0.01?
+
+--
+
+* У скольких генов скорректированное P-значение меньше 0.01 и модуль logFC больше 0.5?
+
+---
+
+## Конвертация идентификаторов
+
+* Часто полезно иметь Entrez-идентификаторы генов
+
+
+```r
+library(AnnotationDbi)
+library(org.Hs.eg.db)
+
+de$entrez &lt;- mapIds(org.Hs.eg.db, keys = de$id,
+                    keytype = "SYMBOL", column = "ENTREZID")
+head(de)
+```
+
+```
+##              id                       Source mean_expression      logFC
+## ASAP3     ASAP3 mRNAseq_RSEM_normalized_log2        9.968023 -1.2037837
+## AK2         AK2 mRNAseq_RSEM_normalized_log2       10.017442 -0.8751147
+## TXNDC12 TXNDC12 mRNAseq_RSEM_normalized_log2       10.075969 -0.7172586
+## NADK       NADK mRNAseq_RSEM_normalized_log2        9.753488 -0.7431802
+## SFRS4     SFRS4 mRNAseq_RSEM_normalized_log2       10.715310 -0.6687051
+## HDAC1     HDAC1 mRNAseq_RSEM_normalized_log2        9.617829 -0.9871215
+##           AveExpr         t      P.Value    adj.P.Val        B entrez
+## ASAP3    9.928571 -16.94603 1.489132e-48 7.880775e-45 99.63908  55616
+## AK2     10.016883 -16.94020 1.576155e-48 7.880775e-45 99.58287    204
+## TXNDC12 10.078701 -16.82120 5.026985e-48 1.675662e-44 98.43494  51060
+## NADK     9.748831 -16.14720 3.494542e-45 8.736356e-42 91.95784  65220
+## SFRS4   10.694026 -15.65387 4.073176e-43 7.845588e-40 87.24821   &lt;NA&gt;
+## HDAC1    9.596883 -15.63882 4.707353e-43 7.845588e-40 87.10499   3065
+```
+
+---
+
+## Анализ представленности
+
+&lt;img src="images/gsea.png" height="400px"&gt;
+
+---
+
+## Подгтовка ранжирования генов
+
+
+
+```r
+de_sub &lt;- de %&gt;%
+    arrange(desc(AveExpr)) %&gt;%
+    filter(!duplicated(entrez) &amp; !is.na(entrez))
+
+stats &lt;- setNames(de_sub$t, de_sub$entrez)
+
+str(stats)
+```
+
+```
+##  Named num [1:9026] -7.87 -5.143 0.315 -5.708 0.89 ...
+##  - attr(*, "names")= chr [1:9026] "2670" "1191" "6678" "60" ...
+```
+
+---
+
+## Получение набора молекулярных путей
+
+
+```r
+library(fgsea)
+library(data.table)
+
+pathways &lt;- reactomePathways(names(stats))
+str(pathways, list.len=5)
+```
+
+```
+## List of 1985
+##  $ 2-LTR circle formation                                                                                                              : chr [1:6] "2547" "7520" "11168" "8815" ...
+##  $ 5-Phosphoribose 1-diphosphate biosynthesis                                                                                          : chr "5631"
+##  $ A tetrasaccharide linker sequence is required for GAG synthesis                                                                     : chr [1:22] "63827" "9672" "1463" "1462" ...
+##  $ Abacavir metabolism                                                                                                                 : chr [1:3] "2987" "22978" "161823"
+##  $ Abacavir transmembrane transport                                                                                                    : chr [1:2] "9429" "5243"
+##   [list output truncated]
+```
+
+---
+
+## Запуск анализа представленности
+
+
+```r
+fr &lt;- fgsea(pathways, stats = stats, nperm=10000, minSize=15, maxSize=500)
+head(fr)
+```
+
+```
+##                                                            pathway
+## 1: A tetrasaccharide linker sequence is required for GAG synthesis
+## 2:                                       ABC transporter disorders
+## 3:                          ABC-family proteins mediated transport
+## 4:   Abortive elongation of HIV-1 transcript in the absence of Tat
+## 5:                Activated NOTCH1 Transmits Signal to the Nucleus
+## 6:                     activated TAK1 mediates p38 MAPK activation
+##          pval      padj         ES        NES nMoreExtreme size
+## 1: 0.64738776 0.8146062 -0.2868911 -0.8728996         4051   22
+## 2: 0.14978098 0.3147205 -0.3246699 -1.2331778         1059   64
+## 3: 0.09184098 0.2301303 -0.3298634 -1.2967549          662   79
+## 4: 0.48664930 0.6911371 -0.3360810 -0.9815032         2988   19
+## 5: 0.11413383 0.2661088 -0.4150017 -1.3252968          729   27
+## 6: 0.05257985 0.1614424 -0.5172224 -1.4897530          320   18
+##                               leadingEdge
+## 1: 2239,126792,6385,375790,2817,64132,...
+## 2:      5690,5686,5704,5714,5715,5701,...
+## 3:      5690,5686,5704,5825,5714,5715,...
+## 4:      6829,5438,5439,4686,5436,5440,...
+## 5:     55851,409,8650,142678,7316,182,...
+## 6:     7867,23118,3654,8767,9261,7316,...
+```
+
+---
+
+## Выбор значимых путей
+
+
+```r
+frSig &lt;- fr[padj &lt; 0.01][order(NES)]
+head(frSig)
+```
+
+```
+##                                                                     pathway
+## 1:                                    Antigen processing-Cross presentation
+## 2: Immunoregulatory interactions between a Lymphoid and a non-Lymphoid cell
+## 3:                                          Interferon alpha/beta signaling
+## 4:                                               Interferon gamma signaling
+## 5:                                                     ER-Phagosome pathway
+## 6:                                      Cytokine Signaling in Immune system
+##            pval        padj         ES       NES nMoreExtreme size
+## 1: 0.0001385233 0.005177286 -0.6233858 -2.450647            0   79
+## 2: 0.0001542734 0.005177286 -0.7281229 -2.385514            0   30
+## 3: 0.0001497006 0.005177286 -0.6695593 -2.346249            0   42
+## 4: 0.0001438642 0.005177286 -0.6267863 -2.336469            0   58
+## 5: 0.0001391788 0.005177286 -0.5860569 -2.269623            0   72
+## 6: 0.0001094930 0.005177286 -0.4757131 -2.259891            0  400
+##                          leadingEdge
+## 1: 5690,5686,5704,1536,9554,1535,...
+## 2: 718,3689,3903,54209,7412,7305,...
+## 3:  3661,5777,2634,3394,684,3133,...
+## 4: 3661,5777,7412,6672,2634,3394,...
+## 5: 5690,5686,5704,9554,9341,8673,...
+## 6: 200081,7431,998,3635,5690,829,...
+```
+
+---
+
+## Выбор значимых путей
+
+
+```r
+tail(frSig)
+```
+
+```
+##                                     pathway         pval        padj
+## 1:    Transmission across Chemical Synapses 0.0004690432 0.008948791
+## 2:  Dopamine Neurotransmitter Release Cycle 0.0002535497 0.007032371
+## 3: Protein-protein interactions at synapses 0.0003514938 0.007475674
+## 4:                 Cholesterol biosynthesis 0.0002643405 0.007032371
+## 5:                Neurexins and neuroligins 0.0003059976 0.007211618
+## 6:           Neurotransmitter release cycle 0.0002837684 0.007069888
+##           ES      NES nMoreExtreme size
+## 1: 0.4359906 2.162187            0  134
+## 2: 0.7076283 2.214919            0   17
+## 3: 0.5231283 2.312307            0   70
+## 4: 0.7401745 2.411647            0   20
+## 5: 0.6238734 2.486286            0   44
+## 6: 0.6790951 2.488970            0   31
+##                              leadingEdge
+## 1:    1141,2562,2743,2566,23229,2556,...
+## 2:     10815,6853,6812,8499,6616,320,...
+## 3: 22941,80059,85358,26045,9379,6812,...
+## 4:     3156,39,64801,3157,50814,2224,...
+## 5: 22941,80059,85358,26045,9379,6812,...
+## 6:      6529,10815,6853,18,6812,6505,...
+```
+
+
+---
+
+## Метаболический путь биосинтеза холестерола
+
+&lt;img src="images/cholesterol.png" height="400px"&gt;
+
+---
+
+## График анализа представленности
+
+
+```r
+plotEnrichment(pathways$`Cholesterol biosynthesis`, stats) +
+    ggtitle("Cholesterol biosynthesis")
+```
+
+![](expression_files/figure-html/gseaPlot-1.svg)&lt;!-- --&gt;
+
+
+---
+
+## pheatmap: тепловые карты
+
+
+```r
+library(pheatmap)
+m &lt;- matrix(rnorm(200), 20, 10)
+pheatmap(m)
+```
+
+![](expression_files/figure-html/pheatmap-1.svg)&lt;!-- --&gt;
+
+---
+
+## Подготовка таблицы
+
+
+```r
+pathwayEntrez &lt;- pathways$`Cholesterol biosynthesis`
+pathwaySymbol &lt;- mapIds(org.Hs.eg.db, pathwayEntrez,
+                        column="SYMBOL", keytype="ENTREZID")
+```
+
+```
+## 'select()' returned 1:1 mapping between keys and columns
+```
+
+```r
+es_cholesterol &lt;- es_sub[fData(es_sub)$id %in% pathwaySymbol, ]
+
+heatmap_table &lt;- exprs(es_cholesterol)
+heatmap_table &lt;- t(apply(heatmap_table, 1, scales::rescale))
+```
+
+---
+
+## Тепловая карта пути синтеза холестерола
+
+
+```r
+pheatmap(heatmap_table, 
+         show_colnames = FALSE)
+```
+
+![](expression_files/figure-html/cholesterol-1-1.svg)&lt;!-- --&gt;
+
+---
+
+## Посмотрим на разницу между группами
+
+
+```r
+es_cholesterol &lt;- es_cholesterol[, order(apply(exprs(es_cholesterol), 2, mean))]
+
+heatmap_table &lt;- exprs(es_cholesterol)
+heatmap_table &lt;- t(apply(heatmap_table, 1, scales::rescale))
+rownames(heatmap_table) &lt;- fData(es_cholesterol)$id
+
+annotation_col &lt;- data.frame(row.names=colnames(es_cholesterol),
+                             histological_type=es_cholesterol$histological_type,
+                             stringsAsFactors = FALSE)
+```
+
+---
+
+## Посмотрим на разницу между группами
+
+
+```r
+pheatmap(heatmap_table, 
+         show_colnames = FALSE, cluster_cols = FALSE,
+         annotation_col = annotation_col)
+```
+
+![](expression_files/figure-html/cholesterol-2-1.png)&lt;!-- --&gt;
+
+---
+
+## Проверим связь с выживаемостью
+
+
+```r
+es$pathway_score &lt;- apply(exprs(es)[fData(es)$id %in% pathwaySymbol, ],
+                          2, mean)
+load("clinical.rda")
+clinical$pathway_score &lt;- 
+    es$pathway_score[match(clinical$bcr_patient_barcode,
+                           es$bcr_patient_barcode)]
+```
+
+---
+
+## Проверим связь с выживаемостью
+
+
+```r
+median(clinical$pathway_score)
+```
+
+```
+## [1] 10.08
+```
+
+```r
+clinical %&gt;% 
+    survfit(Surv(years_to_event, event_status) ~ pathway_score &gt; 10.08,
+            data=.) %&gt;%
+    ggsurv
+```
+
+![](expression_files/figure-html/cholesterol-surv-1-1.png)&lt;!-- --&gt;
+
+---
+
+## Проверим связь с выживаемостью в астроцитоме
+
+
+```r
+clinical %&gt;% 
+    filter(histological_type == "astrocytoma") %&gt;%
+    survfit(Surv(years_to_event, event_status) ~ pathway_score &gt; 10.08, 
+            data=.) %&gt;%
+    ggsurv
+```
+
+![](expression_files/figure-html/cholesterol-surv-2-1.png)&lt;!-- --&gt;
+
+---
+
+## Проверим связь с выживаемостью в олигодендроглиоме
+
+
+```r
+clinical %&gt;% 
+    filter(histological_type == "oligodendroglioma") %&gt;%
+    survfit(Surv(years_to_event, event_status) ~ pathway_score &gt; 10.08,
+            data=.) %&gt;%
+    ggsurv
+```
+
+![](expression_files/figure-html/cholesterol-surv-3-1.png)&lt;!-- --&gt;
+
+---
+
+## Дифференциальная выживаемость в олигодендроглиоме
+
+
+```r
+clinical %&gt;% 
+    filter(histological_type == "oligodendroglioma") %&gt;%
+    survdiff(Surv(years_to_event, event_status) ~ pathway_score &gt; 10.08, data=.)
+```
+
+```
+## Call:
+## survdiff(formula = Surv(years_to_event, event_status) ~ pathway_score &gt; 
+##     10.08, data = .)
+## 
+## n=190, 1 observation deleted due to missingness.
+## 
+##                               N Observed Expected (O-E)^2/E (O-E)^2/V
+## pathway_score &gt; 10.08=FALSE  57       27     13.3     14.26      21.3
+## pathway_score &gt; 10.08=TRUE  133       15     28.7      6.57      21.3
+## 
+##  Chisq= 21.3  on 1 degrees of freedom, p= 4e-06
+```
+
+---
+
+## Регрессия Кокса: модель пропорциональных рисков
+
+
+```r
+clinical %&gt;% 
+    filter(histological_type == "oligodendroglioma") %&gt;%
+    coxph(Surv(years_to_event, event_status) ~ pathway_score, data=.)
+```
+
+```
+## Call:
+## coxph(formula = Surv(years_to_event, event_status) ~ pathway_score, 
+##     data = .)
+## 
+##                 coef exp(coef) se(coef)     z       p
+## pathway_score -1.738     0.176    0.413 -4.21 2.6e-05
+## 
+## Likelihood ratio test=18.38  on 1 df, p=2e-05
+## n= 190, number of events= 42 
+##    (1 observation deleted due to missingness)
+```
+
+---
+
+## Заключение 
+
+* Мы прошли стандартный путь анализ экспрессии
+* Выявили молекулярные пути, различающие гистологические подтипы рака
+* Связали аквтивность пути холестерола с выживаемостью, но 
+интерпретировать этот результат следует осторожно
+
+---
+
+## Реклама
+
+* Международная магистратура "Биоинформатика и системная биология" в Университете ИТМО: дедлайн -- 2 августа (https://vk.com/bioinf_itmo)
+* Выездной семинар по системной биологии (http://bioinf.me/sbw): подача заявок с конца декабря
+
+---
+
+## Проект
+
+* Группируемся по три-четыре человека
+* Выбираем один из типов рака представленных в TCGA
+* Скачиваем данные по экспрессии и клинике
+* Как можно более полно описываем, что в нем происходит
+* Можно руководствоваться соответствующей головной статьей
+* Результаты желательно подкреплять ссылками на другие статьи
+* Основной итоговый документ -- презентация
+    </textarea>
+<script src="libs/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false,
+"ratio": "16:10"
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function() {
+  var d = document, s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})();</script>
+
+<script>
+(function() {
+  var i, text, code, codes = document.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+})();
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://cdn.bootcss.com/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
